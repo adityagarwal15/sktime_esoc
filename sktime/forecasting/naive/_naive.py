@@ -19,6 +19,9 @@ import math
 import numpy as np
 import pandas as pd
 from scipy.stats import norm
+from sktime.forecasting.naive import NaiveForecaster
+
+forecaster = NaiveForecaster(strategy="last")  
 
 from sktime.datatypes._convert import convert, convert_to
 from sktime.datatypes._utilities import get_slice
@@ -358,16 +361,13 @@ class NaiveForecaster(_BaseWindowForecaster):
 
         expected_index = fh.to_absolute(cutoff).to_pandas()
         if strategy == "last" and sp == 1:
-            y_old = lagger.fit_transform(_y)
-            y_new = pd.DataFrame(index=expected_index, columns=[0], dtype="float64")
-            full_y = pd.concat([y_old, y_new], keys=["a", "b"]).sort_index(level=-1)
-            y_filled = full_y.ffill().bfill()
-            # subset to rows that contain elements we wanted to fill
-            y_pred = y_filled.loc["b"]
-            # convert to pd.Series from pd.DataFrame
-            y_pred = y_pred.iloc[:, 0]
+            last_value=_y[-1,0]
+            y_pred=np.repeat(last_value,len(expected_index))
+            y_pred=pd.series(y_pred,index=expected_index,name='y_pred')
+
 
         elif strategy == "last" and sp > 1:
+            y_series=pd.series(self._y.flatten(),index=self._y_index,name=self._y_name)
             y_old = _pivot_sp(_y, sp, anchor_side="end")
             y_old = lagger.fit_transform(y_old)
 
@@ -701,6 +701,7 @@ class NaiveVariance(BaseForecaster):
         self.clone_tags(self.forecaster, tags_to_clone)
 
     def _fit(self, y, X, fh):
+        self._y=np.asarray(y).reshape(-1,1)
         self.fh_early_ = fh is not None
         self.forecaster_ = self.forecaster.clone()
         self.forecaster_.fit(y=y, X=X, fh=fh)
